@@ -17,6 +17,8 @@
 - `iLink/souls/coder.soul.md`
 - `iLink/souls/qa.soul.md`
 - `iLink/souls/domain.soul.md`（认知模式角色规范）
+- `iLink/souls/sdd.soul.md`（认知模式角色规范，v1.4.11+）
+- `iLink/souls/coach.soul.md`（协作认知角色规范，v1.6.0+）
 
 如果以上文件全部缺失，停止执行，提示用户先复制 iLink 框架。
 
@@ -32,8 +34,11 @@
 - `ilink-approve.md`
 - `ilink-status.md`
 - `ilink-domain.md`（认知模式入口）
+- `ilink-sdd.md`（认知模式入口，v1.4.11+）
 
 缺失时给出警告（不阻塞，因为可能使用其他平台）。
+
+> **注意**：v1.6.0 起 `ilink-approve.md` 升级为含 Coach 子流程的 Slash Command（Coach 不需要单独的 `ilink-coach.md`）。
 
 ---
 

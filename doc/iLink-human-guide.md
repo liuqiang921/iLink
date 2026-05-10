@@ -2,7 +2,7 @@
 
 > **读者**：使用 iLink 进行日常开发的工程师
 > **前提**：项目已完成 Bootstrap（`project-context.md` 和入口文件已就位）
-> **版本**：v1.5.0
+> **版本**：v1.6.0
 
 ---
 
@@ -12,6 +12,7 @@
 - [2. 写需求定义——你最重要的工作](#2-写需求定义你最重要的工作)
 - [3. 流水线操作详解](#3-流水线操作详解)
 - [4. 审核设计——Human-Gate 实操](#4-审核设计human-gate-实操)
+  - [4.6 Coach 协作复盘](#46-coach-协作复盘v160-新增)
 - [5. 修订 STAGING 文档——ilink-refine 实操](#5-修订-staging-文档ilink-refine-实操)
 - [6. 回流与熔断——出了问题怎么办](#6-回流与熔断出了问题怎么办)
 - [7. 维护 project-context.md](#7-维护-project-contextmd)
@@ -30,13 +31,13 @@
 ### 1.1 最小操作流程
 
 ```bash
-# ① 创建 Story（对应你的 Jira 单号）
-/ilink-init kcia-1520
+# ① 创建 Story（v1.6.0：第二个参数为当前 session 已用量，先 /usage 或 /stats 查询）
+/ilink-init kcia-1520 1200
 
 # ② 编辑需求定义（这是你唯一需要手写的文件）
 #    打开 iLink-doc/kcia-1520/kcia-1520-requirement.md，填写内容
 
-# ③ 启动 AI 流水线
+# ③ 启动 AI 流水线（中间阶段不需要 usage 参数）
 /ilink-pm kcia-1520          # AI 分析需求，输出业务合同
 /ilink-design kcia-1520      # AI 做技术设计，输出文件清单
 
@@ -45,9 +46,9 @@
 #    重点看 [TASK_ALLOCATION] 和 [DESIGN_DECISIONS]
 ilink-approve kcia-1520      # 审核通过，推进到编码
 
-# ⑤ AI 编码 + 审查
+# ⑤ AI 编码 + 审查（v1.6.0：qa 第二个参数同样为当前已用量）
 /ilink-coder kcia-1520       # AI 写代码
-/ilink-qa kcia-1520          # AI 审查代码
+/ilink-qa kcia-1520 1850     # AI 审查代码 + 写入 usage delta
 
 # ⑥ 你做最终确认后提交
 git add .
@@ -55,6 +56,14 @@ git commit -m "kcia-1520: 功能描述"
 ```
 
 **整个过程中你只做三件事：写需求、审设计、最终提交。**
+
+> **v1.6.0 起 — Usage 追踪硬接口**：`/ilink-init` 和 `/ilink-qa` 第二个参数为"当前 session/月度已用量"，**必填**。每个平台读各自原生的指标：
+> - Claude Code：`/usage` 显示的"% used"
+> - Qoder：`/usage` 显示的"已使用 credits"
+> - Codex：`/status` 显示的 session "tokens used"
+> - Gemini CLI：`/stats` 显示的 session "Total Tokens"
+>
+> 该数值仅写入 `<story>-usage.md` 用于事后观察，不参与契约链。无法查询时允许传 `0`，语义为"故意跳过"，对应 delta 标注为"不可信"。详见 §3.7。
 
 ### 1.2 遇到 STAGING 时
 
@@ -207,12 +216,17 @@ ilink-status kcia-1520    # 查看指定 Story 详情
 ### 3.1 /ilink-init — 创建 Story
 
 ```bash
-/ilink-init kcia-1520
+/ilink-init kcia-1520 1200
+#                     ^^^^
+#       v1.6.0 必填：当前 session/月度已用量数字
 ```
+
+**执行前**：先在 CLI 中执行平台原生 usage 命令查看"已用"数字（详见 §3.7）。
 
 **执行效果**：
 - 创建 `iLink-doc/kcia-1520/` 目录
 - 生成 `kcia-1520-requirement.md` 模板
+- 生成 `kcia-1520-usage.md`，写入 init 行（基线值 = 你传入的数字）
 
 **执行后你要做的**：编辑需求定义，填写完整内容。
 
@@ -267,6 +281,8 @@ ilink-approve kcia-1520
 - design.master.md STAGING → `PENDING_CODER`
 - pm.master.md STAGING → `PENDING_DESIGNER`
 
+> **v1.6.0 起**：每次 `ilink-approve` 都会先在独立子上下文中运行 **Coach 子流程**（仅评估你这次"沟通输入"和"直接编辑设计"的协作质量），将一段单轮反馈追加到 `iLink-doc/<story>/<story>-feedback.md`，然后再推进 Status。Coach 反馈是写给你看的（不会被 Coder/QA 读取），你可以选择参考或忽略；Coach 子流程异常**不阻塞** Status 推进。详见 §4.6。
+
 ### 3.5 /ilink-coder — AI 编码
 
 ```bash
@@ -286,19 +302,76 @@ ilink-approve kcia-1520
 ### 3.6 /ilink-qa — AI 代码审查
 
 ```bash
-/ilink-qa kcia-1520
+/ilink-qa kcia-1520 1850
+#                   ^^^^
+#     v1.6.0 必填：当前 session/月度已用量数字
 ```
 
+**执行前**：再次执行平台原生 usage 命令查看"已用"数字（详见 §3.7）。
+
 **AI 读取**：code.master.md + 源码 + design.master.md + pm.master.md + project-context.md
-**AI 输出**：`kcia-1520-review.master.md`（审查报告）
+**AI 输出**：
+- `kcia-1520-review.master.md`（审查报告）
+- 在 `kcia-1520-usage.md` 追加 review-N 行，并刷新文件末尾 `**Latest Delta**`
 
 **可能的结论**：
 
 | 状态 | 含义 | 你要做什么 |
 |------|------|-----------|
 | `COMPLETED` | 审查通过 | 你做最终审核后 `git commit` |
-| `FAIL_BACK_TO_CODER` | 代码有问题，Coder 可修 | 执行 `/ilink-coder kcia-1520` 回流修复 |
+| `FAIL_BACK_TO_CODER` | 代码有问题，Coder 可修 | 执行 `/ilink-coder kcia-1520` 回流修复，下一次再 `/ilink-qa kcia-1520 <新已用量>` |
 | `STAGING` | 上游问题（设计或需求有缺陷） | 看 `[UPSTREAM_BLOCKERS]`，可执行 `/ilink-refine` 讨论根因 |
+
+> 回流多次 qa 时，`<story>-usage.md` 会按 review-1, review-2, ... 递增追加；Latest Delta 始终基于"最后一次 review"减"init 基线"。
+
+### 3.7 /ilink-init 与 /ilink-qa 的 usage-value 参数（v1.6.0）
+
+**为什么要这个参数**：让你看得见每个 Story 的真实 AI 消耗。`<story>-usage.md` 是事后归档，不参与契约链，缺失/写入失败也**不会阻塞**流水线。
+
+**怎么取值**：在执行命令**之前**，先在当前 CLI 中输入对应原生命令，把"已用"数字读出来：
+
+| 平台 | 查询命令 | 取哪个数字 | Usage_Unit（写入文件，自动） |
+|------|---------|-----------|----------------------------|
+| Claude Code | `/usage` | "% used" 的整数（如 `35`） | `claude-5h-pct` |
+| Qoder | `/usage` | "已使用 credits" 的累计数（如 `1450`） | `qoder-credits-cumulative` |
+| Codex | `/status` | session "tokens used"（如 `12000`） | `codex-session-tokens` |
+| Gemini CLI | `/stats` | session "Total Tokens"（如 `25000`） | `gemini-session-tokens` |
+
+**示例工作流**（以 Qoder 为例）：
+
+```
+你：/usage
+Qoder 回显：已使用 1200 credits
+
+你：/ilink-init kcia-1520 1200
+（init 行写入：Usage_Value=1200，Usage_Unit=qoder-credits-cumulative）
+
+…正常走 PM/Design/approve/Coder…
+
+你：/usage
+Qoder 回显：已使用 1850 credits
+
+你：/ilink-qa kcia-1520 1850
+（review-1 行追加：Usage_Value=1850；Latest Delta = 1850-1200 = 650）
+```
+
+**Latest Delta 的三种标注**：
+
+| 情形 | 标注 | 解读 |
+|------|------|------|
+| `Usage_Value(review) > Usage_Value(init)` | `<delta> (<unit>)` | 正常，delta 即本 Story 的耗用 |
+| `Usage_Value(review) < Usage_Value(init)` | `(跨 reset 边界, 不可比)` | session/月度计数被重置过（CLI 重启、Claude 5h 翻篇、Qoder 月度重置等），不可直接相减 |
+| init 或 review 任一为 `0` | `<delta> (含 0 值, 不可信)` | 你某次故意跳过查询了，delta 仅供参考 |
+
+**允许传 0**：当时无法查询（例如 CLI 卡住、网络问题、纯粹懒得查）时可以传 `0`，命令照常执行，文件正常写入但 delta 标注为"不可信"。**这是逃生通道，不要常态化使用**——0 值会污染整个 Story 的耗用统计。
+
+**不需要 usage-value 的命令**：`/ilink-pm`、`/ilink-design`、`/ilink-coder`、`/ilink-refine`、`ilink-approve`、`ilink-status` 等中间阶段命令完全不需要传第二个参数。我们只在"开始（init）"和"收尾审查（qa）"两个时点采样。
+
+**字段含义**（如果你打开 `<story>-usage.md` 想理解）：
+- `节点`：`init` / `review-1` / `review-2` / …
+- `时间戳`：`TZ=Asia/Shanghai` 当地时间
+- `Usage_Value`：你传入的"已用"数字
+- `Usage_Unit`：由命令硬编码，反映该平台的语义（不接受手填）
 
 ---
 
@@ -382,6 +455,53 @@ cat iLink-doc/kcia-1520/kcia-1520-design.master.md
 **方式 C：修改上游重跑**
 如果根因在 PM 的需求理解，修改需求定义后重新执行 `/ilink-pm` 和 `/ilink-design`。
 
+### 4.6 Coach 协作复盘（v1.6.0 新增）
+
+每次 `ilink-approve` 都会触发一段 **Coach 协作复盘**，目的不是评价代码或设计本身，而是**评价你与 AI 协作的质量**——你提的问题精不精准？你定的范围严不严密？你直接编辑设计文档时，改动是否过界？
+
+#### 4.6.1 Coach 在评什么
+
+Coach 看两类输入：
+
+1. **沟通输入**：从 `/ilink-pm` 完成到 `/ilink-approve` 之间，你说过的话（PM 段 + Design 段两段独立评估）。
+2. **直接编辑**：本次 approve 推进的是 design 时，对比上一次 `/ilink-design` 的快照，看你手动改了什么、改了多少。
+
+评估维度（评的是**你的输入**，不是 AI 的输出）：
+
+| 维度 | 评估视角 |
+|------|---------|
+| 精准性 | 你的描述是否具体到 AC/字段/接口，还是停留在抽象目标 |
+| 完善性 | 你是否覆盖了边界、异常、回滚等 AI 可能漏掉的角度 |
+| 严密性 | 你的诉求之间是否自洽，有没有相互冲突的要求 |
+| 清晰性 | AI 是否多次反问、是否表现出明显的歧义 |
+| 抽象层 | 你是否在合适的层次表达——别在需求层讨论实现细节 |
+| 范围纪律 | 你有没有在编码阶段口头追加需求、在 PM 段讨论实现 |
+
+直接编辑额外看：可追溯性（改动是否在对话中讨论过）、改动幅度（是否远超本次讨论范围）。
+
+#### 4.6.2 Coach 反馈写到哪里
+
+`iLink-doc/<story>/<story>-feedback.md`——**单文件、追加写入、不带 Metadata**。每次 approve 追加一段时间戳标题的反馈，永不覆盖历史。
+
+**反馈是写给你的，下游 AI 不会读它。** 它对流水线状态零影响——你可以参考、可以忽略，但请把它纳入 Git 提交，团队可以回看自己的协作轨迹。
+
+#### 4.6.3 Coach 的产出形式
+
+每次反馈是一段简短 Markdown，包含：
+
+- **PM 段** / **Design 段** 各一段（2-3 句）：肯定 1 项 + 改进 ≤3 项，必须带 `[turn-N]` 或 `@diff-hunk` 证据
+- **直接编辑反馈**（仅 design）：合规改动、问题改动、改动幅度判定
+- **下次更高效的 1 句话**：可执行、聚焦最痛的一点
+
+Coach 的写作纪律：**不献媚、不自我美化、不空话**。如果某段确实没有可改进项，会明确写"无显著改进点"，不会硬凑。
+
+#### 4.6.4 你不需要做什么
+
+- ✅ 你**不需要**回复 Coach 反馈
+- ✅ 你**不需要**为了"看起来沟通良好"修改自己的提问方式
+- ✅ Coach 异常时（子上下文返回失败/为空）**不阻塞** approve，会记录"Coach 子流程异常"后继续推进
+- ✅ 直接编辑 design 时，建议保留 `iLink-doc/<story>/.snapshots/` 目录（已自动加入 `.gitignore`），它是 Coach 计算编辑 diff 的依据
+
 ---
 
 ## 5. 修订 STAGING 文档——ilink-refine 实操
@@ -447,7 +567,8 @@ QA 输出 Status: FAIL_BACK_TO_CODER
     ↓
 你执行: /ilink-coder kcia-1520    ← Coder 读取 QA 的 [FIX_REQUESTS]
     ↓
-Coder 修复后，你再执行: /ilink-qa kcia-1520
+Coder 修复后，先 /usage 或 /stats 查当前已用量，再执行:
+    /ilink-qa kcia-1520 <新已用量>   ← 写入 review-2 行
 ```
 
 **Coder 在回流时只修复 QA 指出的问题**，不会做额外修改。
@@ -591,11 +712,12 @@ iLink-doc/
 
 ### 9.1 AI 说"找不到需求定义文件"
 
-**原因**：你执行了 `/ilink-pm kcia-1520` 但没有先执行 `/ilink-init kcia-1520`。
+**原因**：你执行了 `/ilink-pm kcia-1520` 但没有先执行 `/ilink-init kcia-1520 <usage-value>`。
 
 **解决**：
 ```bash
-/ilink-init kcia-1520
+# v1.6.0：先在 CLI 中查"已用量"（详见 §3.7），再传入第二个参数
+/ilink-init kcia-1520 1200
 # 编辑需求定义后再执行
 /ilink-pm kcia-1520
 ```
@@ -828,12 +950,14 @@ Domain Knowledge 对交付流水线是**可选增强**：
 
 | 命令 | 阶段 | 谁执行 | 输出文件 |
 |------|------|-------|---------|
-| `/ilink-init <story>` | 初始化 | 人类 | 需求定义模板 |
+| `/ilink-init <story> <usage-value>` | 初始化（v1.6.0：usage-value 必填） | 人类 | 需求定义模板 + `<story>-usage.md`（init 行） |
 | `/ilink-pm <story>` | 需求分析 | AI | `<story>-pm.master.md` |
 | `/ilink-design <story>` | 技术设计 | AI | `<story>-design.master.md` |
-| `ilink-approve <story>` | 审核推进 | 人类 | （更新 Metadata Status） |
+| `ilink-approve <story>` | 审核推进 | 人类 | （更新 Metadata Status + Coach 子流程追加 `<story>-feedback.md`） |
 | `/ilink-coder <story>` | 编码 | AI | 源码文件 + `<story>-code.master.md` |
-| `/ilink-qa <story>` | 审查 | AI | `<story>-review.master.md` |
+| `/ilink-qa <story> <usage-value>` | 审查（v1.6.0：usage-value 必填） | AI | `<story>-review.master.md` + `<story>-usage.md` 追加 review-N 行 |
+
+> **v1.6.0 usage-value**：传入"当前 session/月度已用量"的整数。各平台原生命令：Claude `/usage`、Qoder `/usage`、Codex `/status`、Gemini `/stats`。详见 §3.7。
 
 ### 认知模式命令
 
@@ -870,17 +994,22 @@ Domain Knowledge 对交付流水线是**可选增强**：
 │       ├── design.soul.md
 │       ├── coder.soul.md
 │       ├── qa.soul.md
-│       └── domain.soul.md              ← 认知模式：Domain Engineer
+│       ├── domain.soul.md              ← 认知模式：Domain Engineer
+│       ├── sdd.soul.md                 ← SDD 评估（v1.4.11）
+│       └── coach.soul.md               ← 协作复盘（v1.6.0）
 │
 ├── iLink-doc/                      ← 文档归档（提交到 Git）
 │   ├── domain/                        ← Domain Knowledge（认知模式）
 │   │   └── <module>-domain-knowledge.md
 │   ├── kcia-1520/
-│   │   ├── kcia-1520-requirement.md       ← 你写的
+│   │   ├── kcia-1520-requirement.md    ← 你写的
 │   │   ├── kcia-1520-pm.master.md      ← AI 写的
 │   │   ├── kcia-1520-design.master.md  ← AI 写的，你审核的
 │   │   ├── kcia-1520-code.master.md    ← AI 写的
-│   │   └── kcia-1520-review.master.md  ← AI 写的
+│   │   ├── kcia-1520-review.master.md  ← AI 写的
+│   │   ├── kcia-1520-feedback.md       ← Coach 写的（v1.6.0）
+│   │   ├── kcia-1520-usage.md          ← init/qa 时写入的耗用追踪（v1.6.0）
+│   │   └── .snapshots/                 ← design 快照（v1.6.0，不提交）
 │   └── kcia-1521/
 │       └── ...
 │
@@ -892,18 +1021,18 @@ Domain Knowledge 对交付流水线是**可选增强**：
 ```
 
 **提交规则**：
-- ✅ 提交：`iLink-doc/`、`project-context.md`、`CLAUDE.md`、`AGENTS.md`、`iLink/`、源码
-- ❌ 不提交：`.retry_count`（信号文件）
+- ✅ 提交：`iLink-doc/`（含 `<story>-feedback.md`、`<story>-usage.md`）、`project-context.md`、`CLAUDE.md`、`AGENTS.md`、`iLink/`、源码
+- ❌ 不提交：`.retry_count`（信号文件）、`iLink-doc/<story>/.snapshots/`（design 快照，仅本地用于 Coach diff）
 
 ---
 
 ## 附录 C：状态流转图
 
 ```
-                          ┌─────────────────┐
-                          │   /ilink-init    │
-                          │ （人类创建Story） │
-                          └────────┬────────┘
+                          ┌─────────────────────────────┐
+                          │ /ilink-init <story> <usage> │
+                          │  （人类创建Story + usage基线） │
+                          └─────────────┬───────────────┘
                                    │
                                    ▼
                           ┌─────────────────┐
@@ -945,10 +1074,10 @@ Domain Knowledge 对交付流水线是**可选增强**：
                              PENDING_QA
                                    │
                                    ▼
-                          ┌─────────────────┐
-                          │   /ilink-qa      │
-                          │ （AI 代码审查）   │
-                          └────────┬────────┘
+                          ┌─────────────────────────────┐
+                          │  /ilink-qa <story> <usage>  │
+                          │ （AI 代码审查 + usage delta） │
+                          └─────────────┬───────────────┘
                                    │
                     ┌──────────────┼──────────────┐
                     │              │              │

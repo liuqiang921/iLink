@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# FR-BSH-03: ilink-approve <story> - Approve STAGING status and advance to next stage
+# ilink-approve <story> - Pre-check for ilink-approve in-chat command (v1.6.0)
+# Validates STAGING document and prepares context for Coach subprocess + Status advance.
+# The actual Coach subprocess + Status advance happens in the Codex chat via the
+# `ilink-approve <story>` AI command (see .codex/codex-commands.md).
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
@@ -16,40 +19,42 @@ if [[ ! -d "$base_dir" ]]; then
   exit 1
 fi
 
-staging_doc=""
+target_doc=""
+target_role=""
 next_status=""
 next_command=""
 
 if [[ -f "$base_dir/${story}-review.master.md" ]]; then
   status=$(check_status "$base_dir/${story}-review.master.md")
   if [[ "$status" == "STAGING" ]]; then
-    echo "QA 处于 STAGING 状态（上游根因），请人工处理："
-    echo "1. 查看 review.master.md 中的 [UPSTREAM_BLOCKERS]"
-    echo "2. 与 Designer 讨论修改设计，或修改需求定义"
-    echo "3. 手动修改后重新执行 ilink-qa $story"
-    exit 0
+    target_doc="$base_dir/${story}-review.master.md"
+    target_role="review"
+    next_status=""
+    next_command="(QA STAGING — 上游根因，仅 Coach 复盘，不推进 Status)"
   fi
 fi
 
-if [[ -f "$base_dir/${story}-design.master.md" ]]; then
+if [[ -z "$target_doc" && -f "$base_dir/${story}-design.master.md" ]]; then
   status=$(check_status "$base_dir/${story}-design.master.md")
   if [[ "$status" == "STAGING" ]]; then
-    staging_doc="$base_dir/${story}-design.master.md"
+    target_doc="$base_dir/${story}-design.master.md"
+    target_role="design"
     next_status="PENDING_CODER"
     next_command="ilink-coder $story"
   fi
 fi
 
-if [[ -f "$base_dir/${story}-pm.master.md" ]]; then
+if [[ -z "$target_doc" && -f "$base_dir/${story}-pm.master.md" ]]; then
   status=$(check_status "$base_dir/${story}-pm.master.md")
   if [[ "$status" == "STAGING" ]]; then
-    staging_doc="$base_dir/${story}-pm.master.md"
+    target_doc="$base_dir/${story}-pm.master.md"
+    target_role="pm"
     next_status="PENDING_DESIGNER"
     next_command="ilink-design $story"
   fi
 fi
 
-if [[ -z "$staging_doc" ]]; then
+if [[ -z "$target_doc" ]]; then
   log_error "No document in STAGING status found for story '$story'"
   echo ""
   echo "当前状态："
@@ -57,10 +62,45 @@ if [[ -z "$staging_doc" ]]; then
   exit 1
 fi
 
-log_info "Approving: $(basename "$staging_doc")"
+diff_summary=""
+if [[ "$target_role" == "design" ]]; then
+  snap_dir="$base_dir/.snapshots"
+  if [[ -d "$snap_dir" ]]; then
+    latest=$(ls -1 "$snap_dir"/design.master.*.md 2>/dev/null | sort | tail -n 1 || true)
+    if [[ -n "$latest" ]]; then
+      diff_summary="latest snapshot: $latest"
+    else
+      diff_summary="WARN: no snapshot found in $snap_dir"
+    fi
+  else
+    diff_summary="WARN: $snap_dir does not exist"
+  fi
+fi
 
-update_status "$staging_doc" "$next_status"
-
-log_info "Status advanced: STAGING → $next_status"
 echo ""
-echo "下一步: 执行 $next_command"
+echo "=========================================="
+echo "ilink-approve <$story> 预检完成"
+echo "=========================================="
+echo ""
+echo "  目标文档 : $target_doc ($target_role STAGING)"
+if [[ -n "$next_status" ]]; then
+  echo "  目标状态 : STAGING → $next_status"
+else
+  echo "  目标状态 : 不推进（$next_command）"
+fi
+if [[ -n "$diff_summary" ]]; then
+  echo "  Design 快照 : $diff_summary"
+fi
+echo ""
+echo "现在请在 Codex 对话中输入以下命令以触发 Coach 子流程并完成推进："
+echo ""
+echo "  ilink-approve $story"
+echo ""
+echo "  AI 将："
+echo "    1. 摘录本对话中 PM/Design 修订段（带 [turn-N] 标注）"
+echo "    2. 调用 Coach subagent（fresh context）评估人类输入与直接编辑"
+echo "    3. 追加写入 $base_dir/${story}-feedback.md"
+if [[ -n "$next_status" ]]; then
+  echo "    4. 将 $target_role STAGING 推进为 $next_status，提示下一步：$next_command"
+fi
+echo ""

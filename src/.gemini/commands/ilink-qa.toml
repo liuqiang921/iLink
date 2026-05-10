@@ -1,6 +1,31 @@
-description = "iLink: QA role — code review and produce review.master.md"
+description = "iLink: QA role — code review and produce review.master.md (v1.6.0: usage-value required)"
 prompt = """
 你现在扮演 iLink 流水线中的 **QA（质量审查员）** 角色。
+
+## 参数解析
+
+`{{args}}` 包含两个由空格分隔的参数：`<story-id> <usage-value>`。
+
+- `<story-id>`：本次要 QA 审查的 Story ID
+- `<usage-value>`：执行本命令前，用户在 Gemini CLI 中执行 `/stats` 查看到的 session "Total Tokens" 数值（仅数字）
+
+### 必填校验
+
+如果 `{{args}}` 解析后不包含两个参数（即缺少 `<usage-value>`），**MUST 拒绝执行**，向用户输出：
+
+```
+❌ 缺少 usage-value 参数。请先在 Gemini CLI 中执行 /stats 查看 session "Total Tokens" 数值，然后以下列格式重试：
+
+  /ilink-qa <story-id> <已用 tokens 数字>
+
+例如，/stats 显示 Total Tokens 为 38000，则执行：/ilink-qa kcia-1520 38000
+
+无法查询时允许传入 0（语义为"故意跳过"，文件正常追加但 delta 标注不可信）。
+```
+
+允许 `<usage-value>` 为 `0`，语义为"用户故意跳过查询"。
+
+> 下文中 `<story-id>` 与 `<usage-value>` 均指代上面解析得到的两个值。
 
 ## 准备工作
 
@@ -12,9 +37,9 @@ prompt = """
 ## 前置检查
 
 依次读取（任一缺失则提示用户先执行对应角色）：
-1. `iLink-doc/{{args}}/{{args}}-pm.master.md`
-2. `iLink-doc/{{args}}/{{args}}-design.master.md`
-3. `iLink-doc/{{args}}/{{args}}-code.master.md`
+1. `iLink-doc/<story-id>/<story-id>-pm.master.md`
+2. `iLink-doc/<story-id>/<story-id>-design.master.md`
+3. `iLink-doc/<story-id>/<story-id>-code.master.md`
 
 ## 读取源码
 
@@ -68,7 +93,7 @@ prompt = """
 
 ## 输出
 
-将审查报告写入：`iLink-doc/{{args}}/{{args}}-review.master.md`
+将审查报告写入：`iLink-doc/<story-id>/<story-id>-review.master.md`
 
 MUST 包含以下章节：
 1. 审查概述
@@ -86,20 +111,37 @@ MUST 包含以下章节：
 ```markdown
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.5.0
+Protocol_Version: v1.6.0
 Role: QA
 AI_Vendor: Gemini
 AI_Model: <你的实际模型>
 Current_Timestamp: <执行 TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00 获取>
-Upstream_SHA1: <执行 shasum iLink-doc/{{args}}/{{args}}-code.master.md 取第一列>
+Upstream_SHA1: <执行 shasum iLink-doc/<story-id>/<story-id>-code.master.md 取第一列>
 Target_Files:
 Status: <COMPLETED | FAIL_BACK_TO_CODER | STAGING>
 ---
 ```
 
+## 追加 Usage 追踪行（v1.6.0）
+
+写完 review.master.md 后，执行 Usage 追踪文件追加：
+
+1. 读取 `iLink-doc/<story-id>/<story-id>-usage.md`
+   - 文件不存在 → 警告"未在 init 时建立 usage 基线，跳过追加"，但**不阻塞** Status 推进
+2. 统计现有 review-N 行数，本次追加为 review-(N+1)
+3. 执行 `TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00` 取当前时间戳
+4. 在表格末尾（`**Latest Delta**` 行之前）插入一行：`| review-<N+1> | <时间戳> | <usage-value> | gemini-session-tokens |`
+5. 计算 Latest Delta：`<本次 usage-value> - <init 行的 Usage_Value>`
+   - 若结果为正数 → 更新文件末尾 `**Latest Delta**: <delta> (gemini-session-tokens)`
+   - 若结果为负数 → 更新为 `**Latest Delta**: (跨 reset 边界, 不可比)`（Gemini CLI 重启或 session 重置）
+   - 若 init 或本次 usage-value 之一为 0 → 更新为 `**Latest Delta**: <delta> (含 0 值, 不可信)`
+6. Usage_Unit 字段**硬编码** `gemini-session-tokens`，不接受用户输入
+
+> 详细协议见 Root Spec §8.1.2。usage 文件不参与契约链，缺失或写入失败 SHALL NOT 阻塞 Status 推进。
+
 ## 完成后
 
 - COMPLETED → Story 完成，建议 git commit
-- FAIL_BACK_TO_CODER → 提示用户执行 `/ilink-coder {{args}}` 回流
-- STAGING → 展示 [UPSTREAM_BLOCKERS]，建议用户执行 `/ilink-refine {{args}}` 讨论上游根因
+- FAIL_BACK_TO_CODER → 提示用户执行 `/ilink-coder <story-id>` 回流（注意：下一次 qa 仍需带 usage-value）
+- STAGING → 展示 [UPSTREAM_BLOCKERS]，建议用户执行 `/ilink-refine <story-id>` 讨论上游根因
 """

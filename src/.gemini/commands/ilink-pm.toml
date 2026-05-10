@@ -31,7 +31,7 @@ prompt = """
 ```markdown
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.5.0
+Protocol_Version: v1.6.0
 Role: PM
 AI_Vendor: Gemini
 AI_Model: <你的实际模型>

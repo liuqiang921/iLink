@@ -38,12 +38,24 @@ prompt = """
 
 将输出写入：`iLink-doc/{{args}}/{{args}}-design.master.md`
 
+## design 快照（v1.6.0 起 MUST 执行）
+
+写入 design.master.md 之后，立即执行 shell：
+
+```bash
+mkdir -p iLink-doc/{{args}}/.snapshots
+cp iLink-doc/{{args}}/{{args}}-design.master.md \\
+   iLink-doc/{{args}}/.snapshots/design.master.$(TZ=Asia/Shanghai date +%Y%m%d-%H%M%S).md
+```
+
+快照供 `/ilink-approve` 触发的 Coach 子流程检测人类对 design.master.md 的直接编辑。`.snapshots/` 目录 MUST 加入 `.gitignore`。
+
 ## Metadata 印章
 
 ```markdown
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.5.0
+Protocol_Version: v1.6.0
 Role: DESIGNER
 AI_Vendor: Gemini
 AI_Model: <你的实际模型>

@@ -205,7 +205,7 @@
 
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.5.0
+Protocol_Version: v1.6.0
 Role: DESIGNER
 AI_Vendor: <Host CLI 品牌名，如 Claude / Qoder / Codex / Gemini>
 AI_Model: <工具版本或底层模型 ID（若允许披露）>
@@ -259,6 +259,18 @@ Designer 在设计时必须遵守 `project-context.md` §2 技术约束表中的
 2. **精确性**：路径精确到文件，不使用通配符
 3. **测试文件**：单元测试类也必须列入
 4. **白名单约束**：Coder 只能修改此处列出的文件
+
+### 4.6 design 快照（v1.6.0 起 MUST 执行）
+
+写入 `<story>-design.master.md` 之后，Designer MUST 立即执行 shell：
+
+```bash
+mkdir -p iLink-doc/<story>/.snapshots
+cp iLink-doc/<story>/<story>-design.master.md \
+   iLink-doc/<story>/.snapshots/design.master.$(TZ=Asia/Shanghai date +%Y%m%d-%H%M%S).md
+```
+
+快照供 `/ilink-approve` 触发的 Coach 子流程检测人类对 design.master.md 的直接编辑。`.snapshots/` 目录 MUST 加入 `.gitignore`，SHALL NOT 提交到 git（详见 Root Spec §4.7.9）。
 
 ---
 

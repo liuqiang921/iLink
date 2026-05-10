@@ -1,14 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# FR-CMD-04: /ilink-qa <story> - Trigger QA Agent
+# FR-CMD-04: /ilink-qa <story> <usage-value> - Trigger QA Agent
+# v1.6.0: <usage-value> 必填，记录 review 时刻的"已使用 credits"用于 usage 追踪
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$DIR/_common.sh"
 
+# v1.6.0 必填校验：第二参数 <usage-value>
+if [[ $# -lt 2 || -z "${2:-}" ]]; then
+  echo "❌ 缺少 usage-value 参数。请先在 Qoder 中执行 /usage 查看'已使用 credits'，然后以下列格式重试：" >&2
+  echo "" >&2
+  echo "  /ilink-qa <story-id> <已使用 credits 数字>" >&2
+  echo "" >&2
+  echo "例如，/usage 显示已使用 1450 credits，则执行：/ilink-qa kcia-1520 1450" >&2
+  echo "" >&2
+  echo "无法查询时允许传入 0（语义为'故意跳过'，文件正常追加但 delta 标注不可信）。" >&2
+  exit 2
+fi
+
 story_required "$@"
 story="$1"
+usage_value="$2"
+
+# 校验 usage_value 为非负数字
+if ! [[ "$usage_value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+  log_error "usage-value 必须为非负数字，收到：$usage_value"
+  exit 2
+fi
+
 base_dir="$(story_dir "$story")"
 
 code_doc="$base_dir/${story}-code.master.md"
@@ -53,6 +74,44 @@ if [[ -f /tmp/.ilink-qa-check-$$ ]]; then
   rm -f /tmp/.ilink-qa-check-$$
   log_error "QA precheck failed"
   exit 4
+fi
+
+# v1.6.0: 追加 Usage 追踪行 + 计算 Latest Delta
+usage_file="$base_dir/${story}-usage.md"
+if [[ -f "$usage_file" ]]; then
+  # 统计现有 review-N 行数
+  review_count=$(grep -c "^| review-" "$usage_file" || true)
+  next_n=$((review_count + 1))
+  timestamp=$(TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00)
+
+  # 取 init 行的 Usage_Value
+  init_value=$(grep "^| init " "$usage_file" | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$4); print $4}')
+
+  # 在 "**Latest Delta**" 行之前插入新 review 行
+  awk -v new_row="| review-${next_n} | ${timestamp} | ${usage_value} | qoder-credits-cumulative |" '
+    /^\*\*Latest Delta\*\*/ { print new_row; print ""; }
+    { print }
+  ' "$usage_file" > "$usage_file.tmp" && mv "$usage_file.tmp" "$usage_file"
+
+  # 计算 Latest Delta
+  if [[ "$init_value" == "0" || "$usage_value" == "0" ]]; then
+    new_delta="**Latest Delta**: $((${usage_value%.*} - ${init_value%.*})) (含 0 值, 不可信)"
+  elif [[ $(echo "$usage_value < $init_value" | bc -l 2>/dev/null || echo "0") == "1" ]]; then
+    new_delta="**Latest Delta**: (跨 reset 边界, 不可比)"
+  else
+    delta=$(echo "$usage_value - $init_value" | bc -l 2>/dev/null || echo "?")
+    new_delta="**Latest Delta**: ${delta} (qoder-credits-cumulative)"
+  fi
+
+  # 替换 Latest Delta 行
+  awk -v new_delta="$new_delta" '
+    /^\*\*Latest Delta\*\*/ { print new_delta; next }
+    { print }
+  ' "$usage_file" > "$usage_file.tmp" && mv "$usage_file.tmp" "$usage_file"
+
+  log_info "Usage 已追加: review-${next_n} 已用 credits=${usage_value}"
+else
+  log_warn "未找到 ${story}-usage.md（init 时未建立基线），跳过 usage 追加。不阻塞 QA 推进。"
 fi
 
 echo ""

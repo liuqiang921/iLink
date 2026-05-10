@@ -42,6 +42,18 @@
 
 将输出写入：`iLink-doc/$ARGUMENTS/$ARGUMENTS-design.master.md`
 
+## design 快照（v1.6.0 起 MUST 执行）
+
+写入 design.master.md 之后，立即执行以下命令为 Coach 子流程留底：
+
+```bash
+mkdir -p iLink-doc/$ARGUMENTS/.snapshots
+cp iLink-doc/$ARGUMENTS/$ARGUMENTS-design.master.md \
+   iLink-doc/$ARGUMENTS/.snapshots/design.master.$(TZ=Asia/Shanghai date +%Y%m%d-%H%M%S).md
+```
+
+> 快照供 `/ilink-approve` 触发的 Coach 子流程检测人类对 design.master.md 的直接编辑。`.snapshots/` 目录 MUST 加入 `.gitignore`，SHALL NOT 提交到 git（详见 Root Spec §4.7.9）。
+
 ## 重要提醒
 
 [TASK_ALLOCATION] 是 Coder 的唯一工作授权。务必：
@@ -56,7 +68,7 @@
 ```markdown
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.5.0
+Protocol_Version: v1.6.0
 Role: DESIGNER
 AI_Vendor: Claude
 AI_Model: <你的实际模型 ID，如 claude-sonnet-4-6>

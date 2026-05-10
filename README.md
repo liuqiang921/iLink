@@ -2,7 +2,7 @@
 
 **CLI-native 的 AI 多角色软件开发协作框架**
 
-iLink 承担两项使命：**交付模式**将单一 AI 拆分为 4 个专职角色（PM、Designer、Coder、QA），通过文件状态机驱动端到端的软件交付流水线；**认知模式**让 AI 帮团队对重要模块形成系统性的领域知识，沉淀为团队认知资产。
+iLink 承担三项使命：**交付模式**将单一 AI 拆分为 4 个专职角色（PM、Designer、Coder、QA），通过文件状态机驱动端到端的软件交付流水线；**认知模式**让 AI 帮团队对重要模块形成系统性的领域知识，沉淀为团队认知资产；**协作复盘模式**（v1.6.0）在每次 Human-Gate 审核时由独立子上下文中的 Coach 评估人类的沟通输入与直接编辑质量，沉淀团队的协作姿势。
 
 ```
 ── 交付模式 ──────────────────────────────────────────────────────────
@@ -12,6 +12,10 @@ iLink 承担两项使命：**交付模式**将单一 AI 拆分为 4 个专职角
 ── 认知模式 ──────────────────────────────────────────────────────────
 资深工程师选定模块 → AI 读源码提炼 → 生成领域知识文档 → 资深审核确认 → 沉淀认知资产
                       Domain Engineer                     Human-Gate
+
+── 协作复盘模式 ──────────────────────────────────────────────────────
+ilink-approve 触发 → Coach 子上下文评估对话 + design 编辑 → 追加 feedback.md → 人类回看
+                       (fresh context, 不读 master doc, 反献媚反美化)
 ```
 
 ## 解决什么问题
@@ -36,6 +40,8 @@ iLink 承担两项使命：**交付模式**将单一 AI 拆分为 4 个专职角
 - **模型无关**：核心资产全部是纯 Markdown，不绑定特定 LLM。Claude、GPT、Qwen 均可使用
 - **多平台支持**：同一套协议可运行在 Claude CLI、Qoder CLI、Codex CLI、Gemini CLI 等不同 Host CLI 上
 - **Domain Knowledge（领域知识）**：认知模式下 AI 读取既有源码，生成 10 章标准领域知识文档——业务实体、流程全景、设计决策、见贤思齐，由资深工程师引导，沉淀为团队认知资产。其中§9「见贤思齐」对标国际知名开源产品，将"设计理念"与"工程实现"分开评价，帮助团队既看到设计的精妙之处，也认清代码的真实质量
+- **Coach 协作复盘（v1.6.0）**：每次 `ilink-approve` 触发独立子上下文中的 Coach，原文摘录人类对话 + 计算 design 直接编辑 diff，输出一段反献媚、反自我美化、必须带证据的反馈，追加到 `<story>-feedback.md`。Coach 子流程不读 master doc，下游 AI 也不读 feedback.md——它是写给人类看的协作镜子，异常时不阻塞 Status 推进
+- **Per-Story Usage 追踪（v1.6.0）**：`/ilink-init` 与 `/ilink-qa` 强制要求第二参数 `<usage-value>`——执行命令前先用平台原生命令查"已用量"（Claude `/usage` %、Qoder `/usage` credits、Codex `/status` tokens、Gemini `/stats` tokens）并传入。结果写入独立的 `<story>-usage.md`，自动计算 Latest Delta，识别跨 reset 边界。仅采样 init 与 review 两个时点，中间阶段零侵入；usage 文件不参与契约链，缺失或写入失败均不阻塞 Status 推进
 - **CLI-native**：不自建 LLM 调用层，充分利用 Host CLI 的原生能力
 
 ## 快速开始
@@ -83,24 +89,24 @@ Bootstrap 会自动：
 ### 第三步：日常开发
 
 ```bash
-# 创建 Story（对应你的 Jira 单号）
-/ilink-init kcia-1520
+# 创建 Story（v1.6.0：第二参数为当前 session/月度已用量，先用 /usage 或 /stats 查询）
+/ilink-init kcia-1520 1200
 
 # 编辑需求定义（你唯一需要手写的文件）
 # 打开 iLink-doc/kcia-1520/kcia-1520-requirement.md
 
-# 启动 AI 流水线
+# 启动 AI 流水线（中间阶段不需要 usage 参数）
 /ilink-pm kcia-1520          # AI 需求分析 → 输出业务合同
 # 如果 PM 输出 STAGING（存在 [待确认] 项），先修订再继续
 /ilink-refine kcia-1520      # 逐条确认 → 继续流水线
 /ilink-design kcia-1520      # AI 技术设计 → 输出文件清单
 
 # 你审核设计（最重要的审核点）
-ilink-approve kcia-1520      # 审核通过后推进
+ilink-approve kcia-1520      # 审核通过后推进 + Coach 协作复盘（v1.6.0）
 
-# AI 编码 + AI 审查
+# AI 编码 + AI 审查（v1.6.0：qa 第二参数同样为当前已用量）
 /ilink-coder kcia-1520       # AI 按设计写代码，直接写入磁盘
-/ilink-qa kcia-1520          # AI 审查代码，输出审查报告
+/ilink-qa kcia-1520 1850     # AI 审查代码，输出审查报告 + usage delta
 
 # 你最终确认后提交
 git add iLink-doc/kcia-1520/ src/
@@ -185,6 +191,12 @@ Command 文件（平台实现，"操作手册"）
 |------|------|------|------|
 | **Domain Engineer** | 读取既有源码，提炼业务实体、流程全景、设计决策，生成领域知识文档；§9「见贤思齐」对标国际知名开源产品，将设计理念与工程实现分开评价 | 既有源码 | domain-knowledge.md |
 
+### 协作复盘角色（v1.6.0）
+
+| 角色 | 职责 | 输入 | 输出 |
+|------|------|------|------|
+| **Coach** | 在 `ilink-approve` 触发的独立子上下文中，仅评估人类沟通输入与 design 直接编辑的协作质量；不读 master doc、不评价代码本身；反献媚、反自我美化、必须带 [turn-N] 或 @diff-hunk 证据 | 对话原文摘录 + design 编辑 diff | feedback.md（追加） |
+
 每个角色的行为由对应的 Soul 文件（`iLink/souls/*.soul.md`）定义，所有角色共享 `universal.soul.md` 中的通用行为准则。
 
 ## 目录结构
@@ -204,15 +216,20 @@ Command 文件（平台实现，"操作手册"）
 │       ├── design.soul.md
 │       ├── coder.soul.md
 │       ├── qa.soul.md
-│       └── domain.soul.md              ← Domain Engineer（认知模式）
+│       ├── domain.soul.md              ← Domain Engineer（认知模式）
+│       ├── sdd.soul.md                 ← SDD 评估（v1.4.11）
+│       └── coach.soul.md               ← Coach 协作复盘（v1.6.0）
 │
 ├── iLink-doc/                          ← 文档产出（提交到 Git）
 │   ├── <story-id>/                     ← 交付模式：Story 文档
-│   │   ├── <id>-requirement.md                ← 人类编写
-│   │   ├── <id>-pm.master.md              ← AI 输出
-│   │   ├── <id>-design.master.md          ← AI 输出，人类审核
-│   │   ├── <id>-code.master.md            ← AI 输出
-│   │   └── <id>-review.master.md          ← AI 输出
+│   │   ├── <id>-requirement.md             ← 人类编写
+│   │   ├── <id>-pm.master.md               ← AI 输出
+│   │   ├── <id>-design.master.md           ← AI 输出，人类审核
+│   │   ├── <id>-code.master.md             ← AI 输出
+│   │   ├── <id>-review.master.md           ← AI 输出
+│   │   ├── <id>-feedback.md                ← Coach 输出（v1.6.0，仅人类回看）
+│   │   ├── <id>-usage.md                   ← Per-Story 耗用追踪（v1.6.0，init/qa 写入）
+│   │   └── .snapshots/                     ← design 快照（v1.6.0，本地用，不提交）
 │   └── domain/                         ← 认知模式：领域知识文档
 │       └── <module>-domain-knowledge.md  ← AI 生成，资深人员审核
 │
@@ -239,17 +256,19 @@ Command 文件（平台实现，"操作手册"）
 | 命令 | 用途 | 频率 |
 |------|------|------|
 | `/ilink-bootstrap` | 项目冷启动（生成项目知识库） | 每个项目一次 |
-| `/ilink-init <story>` | 创建 Story 目录和需求模板 | 每个需求一次 |
+| `/ilink-init <story> <usage-value>` | 创建 Story 目录和需求模板 + usage 基线（v1.6.0：usage-value 必填） | 每个需求一次 |
 | `/ilink-pm <story>` | AI 需求分析 | 每个 Story |
 | `/ilink-design <story>` | AI 技术设计 | 每个 Story |
-| `ilink-approve <story>` | 人类审核推进 | 审核通过后 |
+| `ilink-approve <story>` | 人类审核推进 + Coach 协作复盘（v1.6.0） | 审核通过后 |
 | `/ilink-coder <story>` | AI 编码 | 设计通过后 |
 | `/ilink-refine <story>` | 人类逐条确认 `[待确认]` 项 | STAGING 时 |
-| `/ilink-qa <story>` | AI 代码审查 | 编码完成后 |
+| `/ilink-qa <story> <usage-value>` | AI 代码审查 + usage delta（v1.6.0：usage-value 必填） | 编码完成后 |
 | `ilink-status [story]` | 查看流水线状态 | 随时 |
 | `/ilink-domain <module>` | 认知模式：AI 读源码 → 生成领域知识文档 | 资深工程师按需触发 |
 
 > `/ilink-*` 是 AI 执行的 Slash Command，`ilink-*`（无斜杠）是 Shell 脚本。
+>
+> **v1.6.0 usage-value**：传入"当前 session/月度已用量"的整数。各平台原生命令：Claude `/usage`、Qoder `/usage`、Codex `/status`、Gemini `/stats`。允许传 `0` 表示故意跳过（对应 delta 标注为"不可信"）。详见 [Human Guide §3.7](doc/iLink-human-guide.md)。
 
 ## 与 OpenSpec / OhMyOpenCode 的关系
 
@@ -327,10 +346,19 @@ iLink 可以与上述方案共存，为其提供补充能力：
 
 ## 版本
 
-当前版本：**v1.5.0**（正式版）
+当前版本：**v1.6.0**（正式版）
 
 - Root Spec: `iLink-root-spec.md`
 - Implementation Guide: `iLink-implementation-guide.md`
+
+### v1.6.0 新增
+
+- **Coach 角色**：新增 `iLink/souls/coach.soul.md`，定义协作复盘子流程的行为规范（6+4 评估维度、4 条输出纪律、反献媚反自我美化原则）
+- **`ilink-approve` 升级为 Slash Command**：内部串行执行"校验前置 → 调用 Coach 子流程 → 写入 feedback.md → 推进 Status"，Coach 子流程在独立 fresh-context 中运行，仅看对话摘录 + design 编辑 diff，不读任何 master doc
+- **协作反馈文件**：`iLink-doc/<story>/<story>-feedback.md`——单文件、追加写入、不带 Metadata、下游 AI 不读取，仅服务于人类协作复盘
+- **design 快照机制**：`/ilink-design` 完成后会将 design.master.md 复制到 `iLink-doc/<story>/.snapshots/design.master.<timestamp>.md`，Coach 据此计算人类对 design 的直接编辑 diff。`.snapshots/` 目录 MUST 加入 `.gitignore`
+- **Coach 异常不阻塞**：子流程失败或返回为空时，会在 feedback.md 追加异常说明，但 Status 推进照常进行——协作复盘是增强项，不是熔断点
+- **Per-Story Usage 追踪硬接口**：`/ilink-init` 与 `/ilink-qa` 强制要求第二参数 `<usage-value>`。结果写入 `iLink-doc/<story>/<story>-usage.md`：单文件、init + review-N 行表格、自动计算 Latest Delta。各平台 Usage_Unit 由命令硬编码（`claude-5h-pct` / `qoder-credits-cumulative` / `codex-session-tokens` / `gemini-session-tokens`），不接受用户输入。usage 文件不挂 Metadata 印章、不参与契约链，缺失或写入失败 SHALL NOT 阻塞 Status 推进——它只为人类提供事后观察。详细协议见 Root Spec §8.1.2
 
 ### v1.5.0 破坏性变更
 

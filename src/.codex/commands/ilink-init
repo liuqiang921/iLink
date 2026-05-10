@@ -1,14 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# FR-BSH-01: ilink-init <story> - Create new Story directory and requirement template
+# FR-BSH-01: ilink-init <story> <usage-value> - Create new Story directory and requirement template
+# v1.6.0: <usage-value> 必填，记录 init 时刻的 Codex session 已用 tokens，用于后续 usage 追踪
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$DIR/_common.sh"
 
+# v1.6.0 必填校验：第二参数 <usage-value>
+if [[ $# -lt 2 || -z "${2:-}" ]]; then
+  echo "❌ 缺少 usage-value 参数。请先在 Codex 中执行 /status 查看 session 'tokens used' 数值，然后以下列格式重试：" >&2
+  echo "" >&2
+  echo "  /ilink-init <story-id> <已用 tokens 数字>" >&2
+  echo "" >&2
+  echo "例如，/status 显示 tokens used 为 12000，则执行：/ilink-init kcia-1520 12000" >&2
+  echo "" >&2
+  echo "无法查询时允许传入 0（语义为'故意跳过'，文件正常写入但 delta 标注不可信）。" >&2
+  exit 2
+fi
+
 story_required "$@"
 story="$1"
+usage_value="$2"
+
+# 校验 usage_value 为非负数字（整数或小数）
+if ! [[ "$usage_value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+  log_error "usage-value 必须为非负数字，收到：$usage_value"
+  exit 2
+fi
+
 base_dir="$(story_dir "$story")"
 
 if [[ -d "$base_dir" ]]; then
@@ -16,7 +37,7 @@ if [[ -d "$base_dir" ]]; then
   exit 1
 fi
 
-log_info "Initializing story: $story"
+log_info "Initializing story: $story (init usage=$usage_value codex-session-tokens)"
 
 mkdir -p "$base_dir"
 
@@ -68,12 +89,27 @@ EOT
 sed -i.bak "s/<story>/$story/g" "$base_dir/${story}-requirement.md"
 rm -f "$base_dir/${story}-requirement.md.bak"
 
+# v1.6.0: 写入 Usage 追踪文件
+timestamp=$(TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00)
+cat > "$base_dir/${story}-usage.md" << EOT
+# ${story} — Usage Tracking
+
+| 节点 | 时间戳 | Usage_Value | Usage_Unit |
+|------|--------|------------|-----------|
+| init | ${timestamp} | ${usage_value} | codex-session-tokens |
+
+**Latest Delta**: (待 review 后计算)
+
+> 说明：用户在 init 和每次 qa 执行前，查询 Codex 的 \`/status\` 显示的 session "tokens used" 并传入命令。中间阶段不追踪。回流多次 qa 时按 review-1, review-2... 递增编号，Latest Delta 始终基于最后一次 review。
+EOT
+
 reset_retry_count "$base_dir"
 
 log_info "Story '$story' initialized successfully"
 echo ""
 echo "工作目录: $base_dir"
 echo "初始文件: ${story}-requirement.md"
+echo "Usage 追踪: ${story}-usage.md (init 已用 tokens=${usage_value})"
 echo ""
 echo "下一步："
 echo "1. 编辑 $base_dir/${story}-requirement.md"

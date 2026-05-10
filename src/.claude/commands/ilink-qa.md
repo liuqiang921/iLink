@@ -1,5 +1,28 @@
 你现在扮演 iLink 中的 **QA（质量审查员）** 角色。
 
+## 参数解析
+
+`$ARGUMENTS` 包含两个由空格分隔的参数：`<story-id> <usage-value>`。
+
+- `<story-id>`：本次要 QA 审查的 Story ID
+- `<usage-value>`：执行本命令前，用户在 Claude Code 中执行 `/usage` 查看到的"当前 session 已使用百分比"数值（仅数字，不含 % 号）
+
+### 必填校验
+
+如果 `$ARGUMENTS` 解析后不包含两个参数（即缺少 `<usage-value>`），**MUST 拒绝执行**，向用户输出：
+
+```
+❌ 缺少 usage-value 参数。请先在 Claude Code 中执行 /usage 查看"session 已用百分比"，然后以下列格式重试：
+
+  /ilink-qa <story-id> <已用百分比数字>
+
+例如，/usage 显示 "35%" 已用，则执行：/ilink-qa kcia-1520 35
+
+无法查询时允许传入 0（语义为"故意跳过"，文件正常追加但 delta 标注不可信）。
+```
+
+允许 `<usage-value>` 为 `0`，语义为"用户故意跳过查询"。
+
 ## 准备工作
 
 依次读取以下文件，作为你的角色知识和行为规范：
@@ -12,9 +35,9 @@
 
 依次读取以下文档（任一缺失则提示用户先执行对应角色）：
 
-1. `iLink-doc/$ARGUMENTS/$ARGUMENTS-pm.master.md`（PM 文档，B4 验收标准）
-2. `iLink-doc/$ARGUMENTS/$ARGUMENTS-design.master.md`（Designer 设计）
-3. `iLink-doc/$ARGUMENTS/$ARGUMENTS-code.master.md`（Coder 变更摘要）
+1. `iLink-doc/<story-id>/<story-id>-pm.master.md`（PM 文档，B4 验收标准）
+2. `iLink-doc/<story-id>/<story-id>-design.master.md`（Designer 设计）
+3. `iLink-doc/<story-id>/<story-id>-code.master.md`（Coder 变更摘要）
 
 ## 读取源码
 
@@ -60,7 +83,7 @@
 - [NON_BLOCKING_NOTES]
 - [RECHECK_SCOPE]
 
-将输出写入：`iLink-doc/$ARGUMENTS/$ARGUMENTS-review.master.md`
+将输出写入：`iLink-doc/<story-id>/<story-id>-review.master.md`
 
 ## Metadata 印章
 
@@ -69,18 +92,35 @@
 ```markdown
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.5.0
+Protocol_Version: v1.6.0
 Role: QA
 AI_Vendor: Claude
 AI_Model: <你的实际模型 ID，如 claude-sonnet-4-6>
 Current_Timestamp: <执行 TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00 获取实际时间>
-Upstream_SHA1: <执行 shasum iLink-doc/$ARGUMENTS/$ARGUMENTS-code.master.md 取第一列>
+Upstream_SHA1: <执行 shasum iLink-doc/<story-id>/<story-id>-code.master.md 取第一列>
 Target_Files:
 Status: <COMPLETED | FAIL_BACK_TO_CODER | STAGING>
 ---
 ```
 
-> 提示：在输出 Metadata 区块前，先通过 Bash 工具执行 `TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00` 和 `shasum iLink-doc/$ARGUMENTS/$ARGUMENTS-code.master.md` 获取真实值后填入，不得留占位符。
+> 提示：在输出 Metadata 区块前，先通过 Bash 工具执行 `TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00` 和 `shasum iLink-doc/<story-id>/<story-id>-code.master.md` 获取真实值后填入，不得留占位符。
+
+## 追加 Usage 追踪行（v1.6.0）
+
+写完 review.master.md 后，执行 Usage 追踪文件追加：
+
+1. 读取 `iLink-doc/<story-id>/<story-id>-usage.md`
+   - 文件不存在 → 警告"未在 init 时建立 usage 基线，跳过追加"，但**不阻塞** Status 推进
+2. 统计现有 review-N 行数，本次追加为 review-(N+1)
+3. 执行 `TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00` 取当前时间戳
+4. 在表格末尾追加一行：`| review-<N+1> | <时间戳> | <usage-value> | claude-5h-pct |`
+5. 计算 Latest Delta：`<本次 usage-value> - <init 行的 Usage_Value>`
+   - 若结果为正数 → 更新文件末尾 `**Latest Delta**: <delta> (claude-5h-pct)`
+   - 若结果为负数 → 更新为 `**Latest Delta**: (跨 reset 边界, 不可比)`
+   - 若 init 或本次 usage-value 之一为 0 → 更新为 `**Latest Delta**: <delta> (含 0 值, 不可信)`
+6. Usage_Unit 字段**硬编码** `claude-5h-pct`，不接受用户输入
+
+> 详细协议见 Root Spec §8.1.2。usage 文件不参与契约链，缺失或写入失败 SHALL NOT 阻塞 Status 推进。
 
 ## 完成后
 
