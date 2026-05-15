@@ -1365,7 +1365,7 @@ iLink 的每个角色 MUST 由人类手动触发：
 |------|----------------|-----------|
 | Qoder | `qoder-credits-cumulative` | `/usage` 显示的"已使用 credits" |
 | Claude Code | `claude-5h-pct` | `/usage` 显示的"session 已用百分比" |
-| Codex CLI | `codex-session-tokens` | `/status` 显示的"session 已用 token" |
+| Codex CLI | `codex-context-window-used` | `/status` 显示的"Context window"的 used 值 |
 | Gemini CLI | `gemini-session-tokens` | `/stats` 显示的"session 已用 token" |
 
 **输入校验规则**（init 和 qa 命令 MUST 实施）：

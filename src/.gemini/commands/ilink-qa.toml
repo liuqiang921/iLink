@@ -139,6 +139,13 @@ Status: <COMPLETED | FAIL_BACK_TO_CODER | STAGING>
 
 > 详细协议见 Root Spec §8.1.2。usage 文件不参与契约链，缺失或写入失败 SHALL NOT 阻塞 Status 推进。
 
+## Usage 追加校验（v1.6.0 MUST）
+
+完成 usage.md 追加后，MUST 向用户回报：
+1. 追加的行标识（review-N）
+2. Latest Delta 计算结果
+3. 若跳过 usage 追加，回报原因（文件缺失/值异常等）
+
 ## 完成后
 
 - COMPLETED → Story 完成，建议 git commit

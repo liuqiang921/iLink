@@ -76,45 +76,72 @@ if [[ -f /tmp/.ilink-qa-check-$$ ]]; then
   exit 4
 fi
 
-# v1.6.0: 追加 Usage 追踪行 + 计算 Latest Delta
-usage_file="$base_dir/${story}-usage.md"
-if [[ -f "$usage_file" ]]; then
-  # 统计现有 review-N 行数
-  review_count=$(grep -c "^| review-" "$usage_file" || true)
-  next_n=$((review_count + 1))
-  timestamp=$(TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00)
-
-  # 取 init 行的 Usage_Value
-  init_value=$(grep "^| init " "$usage_file" | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$4); print $4}')
-
-  # 在 "**Latest Delta**" 行之前插入新 review 行
-  awk -v new_row="| review-${next_n} | ${timestamp} | ${usage_value} | qoder-credits-cumulative |" '
-    /^\*\*Latest Delta\*\*/ { print new_row; print ""; }
-    { print }
-  ' "$usage_file" > "$usage_file.tmp" && mv "$usage_file.tmp" "$usage_file"
-
-  # 计算 Latest Delta
-  if [[ "$init_value" == "0" || "$usage_value" == "0" ]]; then
-    new_delta="**Latest Delta**: $((${usage_value%.*} - ${init_value%.*})) (含 0 值, 不可信)"
-  elif [[ $(echo "$usage_value < $init_value" | bc -l 2>/dev/null || echo "0") == "1" ]]; then
-    new_delta="**Latest Delta**: (跨 reset 边界, 不可比)"
-  else
-    delta=$(echo "$usage_value - $init_value" | bc -l 2>/dev/null || echo "?")
-    new_delta="**Latest Delta**: ${delta} (qoder-credits-cumulative)"
-  fi
-
-  # 替换 Latest Delta 行
-  awk -v new_delta="$new_delta" '
-    /^\*\*Latest Delta\*\*/ { print new_delta; next }
-    { print }
-  ' "$usage_file" > "$usage_file.tmp" && mv "$usage_file.tmp" "$usage_file"
-
-  log_info "Usage 已追加: review-${next_n} 已用 credits=${usage_value}"
-else
-  log_warn "未找到 ${story}-usage.md（init 时未建立基线），跳过 usage 追加。不阻塞 QA 推进。"
-fi
-
 echo ""
-echo "现在可以在对话中执行: /ilink-qa $story"
+echo "你现在扮演 iLink 中的 QA（质量审查员）角色。"
 echo ""
-echo "提示: QA 将输出 ${story}-review.master.md，结论为 COMPLETED / FAIL_BACK_TO_CODER / STAGING"
+echo "## 参数"
+echo ""
+echo "- story: $story"
+echo "- usage-value: $usage_value（用户当前已使用 credits）"
+echo ""
+echo "## 准备工作"
+echo ""
+echo "依次读取以下文件："
+echo "1. project-context.md"
+echo "2. iLink/souls/universal.soul.md"
+echo "3. iLink/souls/qa.soul.md"
+echo ""
+echo "## 前置检查"
+echo ""
+echo "依次读取（任一缺失则提示用户先执行对应角色）："
+echo "1. iLink-doc/${story}/${story}-pm.master.md"
+echo "2. iLink-doc/${story}/${story}-design.master.md"
+echo "3. iLink-doc/${story}/${story}-code.master.md"
+echo ""
+echo "## 读取源码"
+echo ""
+echo "从 code.master.md 变更清单中提取所有文件路径，逐一读取磁盘上的实际源码文件。文件不存在则记录为 HIGH severity Issue。"
+echo ""
+echo "## 执行五步审查"
+echo ""
+echo "1. 消费 [REVIEW_HANDOFF]（缺失则记录 MISSING_HANDOFF）"
+echo "2. 设计符合性审查（对照 design.master.md）"
+echo "3. AC 覆盖验收（以 pm.master.md B4 为基准）"
+echo "4. 代码质量审查（对照 project-context.md）"
+echo "5. 回流复核（仅回流时）"
+echo ""
+echo "## 输出 review.master.md"
+echo ""
+echo "写入：iLink-doc/${story}/${story}-review.master.md"
+echo "Status: COMPLETED / FAIL_BACK_TO_CODER / STAGING"
+echo ""
+echo "## 追加 Usage 追踪行（v1.6.0 MUST）"
+echo ""
+echo "写完 review.master.md 后，执行 Usage 追踪："
+echo ""
+echo "1. 读取 iLink-doc/${story}/${story}-usage.md"
+echo "   - 文件不存在 → 警告，不阻塞 Status 推进"
+echo "2. 统计现有 review-N 行数，本次追加为 review-(N+1)"
+echo "3. 执行 TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00 取当前时间戳"
+echo "4. 在表格末尾（**Latest Delta** 行之前）插入一行："
+echo "   | review-<N+1> | <时间戳> | ${usage_value} | qoder-credits-cumulative |"
+echo "5. 计算 Latest Delta：${usage_value} - <init 行的 Usage_Value>"
+echo "   - 正数 → **Latest Delta**: <delta> (qoder-credits-cumulative)"
+echo "   - 负数 → **Latest Delta**: (跨 reset 边界, 不可比)"
+echo "   - init 或本次为 0 → **Latest Delta**: <delta> (含 0 值, 不可信)"
+echo "6. Usage_Unit 硬编码 qoder-credits-cumulative，不接受用户输入"
+echo ""
+echo "> 详细协议见 Root Spec §8.1.2。usage 文件不参与契约链，缺失或写入失败 SHALL NOT 阻塞 Status 推进。"
+echo ""
+echo "## Usage 追加校验（v1.6.0 MUST）"
+echo ""
+echo "完成 usage.md 追加后，MUST 向用户回报："
+echo "1. 追加的行标识（review-N）"
+echo "2. Latest Delta 计算结果"
+echo "3. 若跳过 usage 追加，回报原因（文件缺失/值异常等）"
+echo ""
+echo "## 完成后"
+echo ""
+echo "- COMPLETED → Story 完成，建议 git commit"
+echo "- FAIL_BACK_TO_CODER → 提示用户执行 /ilink-coder ${story} 回流修复"
+echo "- STAGING → 展示 [UPSTREAM_BLOCKERS]，建议用户与 Designer 讨论"

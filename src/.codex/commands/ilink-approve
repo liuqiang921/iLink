@@ -30,7 +30,7 @@ if [[ -f "$base_dir/${story}-review.master.md" ]]; then
     target_doc="$base_dir/${story}-review.master.md"
     target_role="review"
     next_status=""
-    next_command="(QA STAGING — 上游根因，仅 Coach 复盘，不推进 Status)"
+    next_command="(QA STAGING — 上游根因，跳过 Coach，不推进 Status)"
   fi
 fi
 
@@ -97,10 +97,17 @@ echo ""
 echo "  ilink-approve $story"
 echo ""
 echo "  AI 将："
-echo "    1. 摘录本对话中 PM/Design 修订段（带 [turn-N] 标注）"
-echo "    2. 调用 Coach subagent（fresh context）评估人类输入与直接编辑"
-echo "    3. 追加写入 $base_dir/${story}-feedback.md"
-if [[ -n "$next_status" ]]; then
-  echo "    4. 将 $target_role STAGING 推进为 $next_status，提示下一步：$next_command"
+if [[ "$target_role" == "design" ]]; then
+  echo "    1. 摘录本对话中 PM/Design 修订段（带 [turn-N] 标注）"
+  echo "    2. 调用 Coach subagent（fresh context）评估人类输入与直接编辑"
+  echo "    3. 追加写入 $base_dir/${story}-feedback.md"
+  if [[ -n "$next_status" ]]; then
+    echo "    4. 将 $target_role STAGING 推进为 $next_status，提示下一步：$next_command"
+  fi
+else
+  echo "    1. 跳过 Coach 子流程（非 design 推进场景，Root Spec §6.4）"
+  if [[ -n "$next_status" ]]; then
+    echo "    2. 将 $target_role STAGING 推进为 $next_status，提示下一步：$next_command"
+  fi
 fi
 echo ""

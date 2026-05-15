@@ -1,4 +1,4 @@
-description = "iLink: Approve — Coach reflection subprocess + advance STAGING status (v1.6.0)"
+description = "iLink: Approve — Coach reflection subprocess (design-only) + advance STAGING status (v1.6.0)"
 prompt = """
 你现在执行 iLink 的 **审核通过（Human-Gate 推进 + Coach 协作复盘）** 操作。
 
@@ -16,19 +16,23 @@ prompt = """
 
 ### 步骤 2：按优先级查找 STAGING 文档
 
-| 优先级 | 文档 | STAGING 时的目标状态 | 后续命令 |
-|-------|------|-------------------|---------|
-| 1 | `{{args}}-review.master.md` | **不能自动推进**（上游根因） | 告知用户查看 [UPSTREAM_BLOCKERS]，与 Designer 讨论修改设计或修改需求定义后结束 |
-| 2 | `{{args}}-design.master.md` | `PENDING_CODER` | `/ilink-coder {{args}}` |
-| 3 | `{{args}}-pm.master.md` | `PENDING_DESIGNER` | `/ilink-design {{args}}` |
+| 优先级 | 文档 | Coach | STAGING 时的目标状态 | 后续命令 |
+|-------|------|-------|-------------------|---------|
+| 1 | `{{args}}-review.master.md` | **跳过** | **不能自动推进**（上游根因） | 告知用户查看 [UPSTREAM_BLOCKERS]，与 Designer 讨论修改设计或修改需求定义后结束 |
+| 2 | `{{args}}-design.master.md` | **运行** | `PENDING_CODER` | `/ilink-coder {{args}}` |
+| 3 | `{{args}}-pm.master.md` | **跳过** | `PENDING_DESIGNER` | `/ilink-design {{args}}` |
 
 如果没有 STAGING 文档，告知用户当前没有需要审核的文档，建议执行 `/ilink-status {{args}}` 后结束。
 
-> **注意**：QA review STAGING（上游根因）时 SHALL NOT 推进 Status，但 Coach 子流程仍 MUST 执行。
+记录 `target_role` 为 `review` / `design` / `pm`，供后续步骤使用。
+
+> **Root Spec §6.4**：Coach 子流程**仅在 design.master.md 推进场景启用**。PM 与 review 推进场景跳过 Coach，但 MUST 保留 Status 推进逻辑（review 场景由步骤 4 已做跳过）。
 
 ---
 
-### 步骤 3：调用 Coach 子流程
+### 步骤 3：调用 Coach 子流程（仅当 `target_role == "design"` 时执行）
+
+若 `target_role != "design"`，跳过本步骤所有子节（3.1–3.5），直接进入步骤 4，并在最终报告（步骤 5）中说明"本轮非 design 推进，跳过 Coach"。
 
 读取 `iLink/souls/coach.soul.md`。
 
@@ -46,15 +50,18 @@ prompt = """
 - 列出 `iLink-doc/{{args}}/.snapshots/design.master.*.md`，按文件名降序取最新
 - 执行 `diff -u <最新快照> iLink-doc/{{args}}/{{args}}-design.master.md` 生成 unified diff
 - 若快照缺失，记录 `"无法判定直接编辑（缺少 design 快照）"`
-- 目标为 PM 或 review 时记 `"本段无直接编辑（PM/review 文档不做编辑检测）"`
 
 #### 3.3 调用 subagent
 
 使用 Gemini 的子任务/独立上下文机制启动一个 fresh-context 子对话。**SHALL NOT** 传入 master doc、requirement.md 或源码。
 
+若当前 Gemini 环境实际不支持真正的独立上下文 subagent，MUST 在 feedback.md 该轮反馈段首显式标注 `(未启用 fresh-context, parent 自评)`，便于人类识别该轮反馈可信度下降。
+
 提示词：
 ```
 你是 iLink Coach 子流程。请严格按照下方 coach.soul.md 的执行步骤（§6）和输出格式（§7）评估对话与 diff，输出单轮反馈 Markdown 段落。
+
+请使用下方【时间戳】的值作为 §7.2 骨架中的分节标题（## <时间戳值> approve 复盘）。
 
 【时间戳】<TZ=Asia/Shanghai date +%Y-%m-%dT%H:%M:%S+08:00>
 
@@ -67,14 +74,15 @@ prompt = """
 【design diff】
 <3.2 内容>
 
-请直接返回 §7.2 骨架对应的 Markdown 段落（不要包含其他解释）。
+请直接返回 §7.2 骨架对应的 Markdown 段落（不要包含其他解释）。以 `## <时间戳值> approve 复盘` 开头。
 ```
 
 #### 3.4 追加写入 feedback.md
 
 - 路径：`iLink-doc/{{args}}/{{args}}-feedback.md`
 - 文件不存在时新建，**不写入** Metadata 印章
-- 将 subagent 返回内容**追加**（前后加空行），SHALL NOT 覆盖历史
+- 追加一个空行，再追加 subagent 返回内容到末尾。SHALL NOT 覆盖历史
+- 如果 subagent 响应未以 `## <timestamp> approve 复盘` 标题行开头，Parent AI MUST 在响应前插入该标题行（使用 3.3 prompt 中的同一时间戳）
 
 #### 3.5 异常处理
 
@@ -98,7 +106,9 @@ subagent 失败或返回为空时，**SHALL NOT** 阻塞 Status 推进。在 fee
 ### 步骤 5：报告
 
 向用户报告：
-1. ✅ Coach 反馈已追加到 `iLink-doc/{{args}}/{{args}}-feedback.md`
+1. Coach 结果：
+   - design target → ✅ Coach 反馈已追加到 `iLink-doc/{{args}}/{{args}}-feedback.md`
+   - PM/review target → ⏭️ Coach skipped（非 design 推进场景）
 2. Status 推进结果（或"未推进"及原因）
 3. 提示下一步命令（参见步骤 2 表格"后续命令"列）
 
