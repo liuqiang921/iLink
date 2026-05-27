@@ -16,7 +16,6 @@ prompt = """
 - `iLink/souls/coder.soul.md`
 - `iLink/souls/qa.soul.md`
 - `iLink/souls/domain.soul.md`
-- `iLink/souls/sdd.soul.md`（v1.4.11 新增）
 - `iLink/souls/coach.soul.md`（v1.6.0 新增）
 
 如果以上文件全部缺失，停止执行，提示用户先复制 iLink 框架。
@@ -24,7 +23,7 @@ prompt = """
 ### 步骤 2：检查 Gemini CLI 命令文件
 
 确认 `.gemini/commands/` 下存在以下 `.toml` 文件：
-- `ilink-init.toml`, `ilink-pm.toml`, `ilink-design.toml`, `ilink-coder.toml`, `ilink-qa.toml`, `ilink-refine.toml`, `ilink-domain.toml`, `ilink-sdd.toml`, `ilink-approve.toml`, `ilink-status.toml`
+- `ilink-init.toml`, `ilink-pm.toml`, `ilink-design.toml`, `ilink-coder.toml`, `ilink-qa.toml`, `ilink-refine.toml`, `ilink-domain.toml`, `ilink-approve.toml`, `ilink-status.toml`
 
 > v1.6.0 起 `ilink-approve.toml` 内含 Coach 子流程逻辑（协作复盘 + Status 推进）。
 

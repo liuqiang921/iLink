@@ -52,7 +52,7 @@ cp iLink-doc/$ARGUMENTS/$ARGUMENTS-design.master.md \
    iLink-doc/$ARGUMENTS/.snapshots/design.master.$(TZ=Asia/Shanghai date +%Y%m%d-%H%M%S).md
 ```
 
-> 快照供 `/ilink-approve` 触发的 Coach 子流程检测人类对 design.master.md 的直接编辑。`.snapshots/` 目录 MUST 加入 `.gitignore`，SHALL NOT 提交到 git（详见 Root Spec §4.7.9）。
+> 快照供 `/ilink-approve` 触发的 Coach 子流程检测人类对 design.master.md 的直接编辑。`.snapshots/` 目录 MUST 加入 `.gitignore`，SHALL NOT 提交到 git（详见 Root Spec §4.6.9）。
 
 ## 重要提醒
 
