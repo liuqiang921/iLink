@@ -7,9 +7,7 @@
 > **iLink — 一为 AI 立法**
 
 <div align="center">
-
-![iLink 设计理念全景](ilink-opt2.png)
-
+  <img src="ilink-opt2.png" alt="iLink 设计理念全景" width="55%">
 </div>
 
 iLink 用 **Root Spec**（AI Agent 的宪法）+ **Soul 文件**（角色岗位说明书）+ **Master Doc**（交付契约），将单一 AI 拆分为多个职责清晰的角色，通过文件状态机驱动端到端协作。三条工作线并行：**交付线**让 AI 像专业团队一样完成需求；**认知线**让 AI 帮团队沉淀领域知识；**协作复盘线**（v1.6.0）让 AI 帮团队反思协作姿势。
