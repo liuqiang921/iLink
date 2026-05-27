@@ -17,7 +17,7 @@ echo ""
 
 # 1. Fix executable permissions
 echo "[1/5] 设置脚本执行权限..."
-for dir in ".claude/commands" ".qoder/commands" ".codex/commands"; do
+for dir in ".claude/commands" ".qoder/commands" ".codex/commands" ".gemini/commands"; do
   if [[ -d "$PROJECT_ROOT/$dir" ]]; then
     chmod +x "$PROJECT_ROOT/$dir"/*  2>/dev/null || true
     echo "  ✓ $dir/*"
@@ -35,7 +35,7 @@ sed_inplace() {
   fi
   sed -i -e "$expr" "$file"
 }
-for dir in ".claude/commands" ".qoder/commands" ".codex/commands"; do
+for dir in ".claude/commands" ".qoder/commands" ".codex/commands" ".gemini/commands"; do
   if [[ -d "$PROJECT_ROOT/$dir" ]]; then
     for f in "$PROJECT_ROOT/$dir"/*; do
       if [[ -f "$f" ]] && grep -q $'\r' "$f" 2>/dev/null; then
@@ -121,6 +121,7 @@ if [[ -d "$PROJECT_ROOT/.codex" ]]; then
       echo "- \`bash .codex/commands/ilink-init <story>\` — 创建 Story"
       echo "- \`bash .codex/commands/ilink-status [story]\` — 查看状态"
       echo "- \`bash .codex/commands/ilink-approve <story>\` — 审核推进"
+      echo "- \`bash .codex/commands/ilink-pull <story>\` — 从 Issue System 拉取需求描述"
     } >> "$agents_file"
     echo "  ✓ iLink 引导已追加到 AGENTS.md"
   fi
