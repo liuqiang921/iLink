@@ -1,18 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# iLink - 环境初始化脚本
+# iLink - 环境初始化脚本（可选）
 # 设置权限、检查依赖、更新 AGENTS.md
 # Usage: bash iLink/setup.sh
 #
 # 前置条件: 已复制 .claude/, .qoder/, .codex/, iLink/, iLink-doc/ 到项目
+#
+# 注意：本脚本是可选的。/ilink-bootstrap 不依赖它。
+#       仅当 .qoder / .codex 下的 bash 命令"没有执行权限"或 CRLF 行尾符
+#       导致脚本无法运行时，跑一下本脚本即可。Claude / Gemini 的 slash
+#       command 完全不依赖 exec 权限，可直接跳过本脚本。
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo ""
-echo "iLink — 环境初始化"
-echo "========================"
+echo "iLink — 环境初始化（可选辅助脚本）"
+echo "================================================"
+echo ""
+echo "ℹ️  本脚本是可选的。/ilink-bootstrap 不依赖它，直接跑 bootstrap 即可使用 iLink。"
+echo "   本脚本仅修复 4 件辅助事项："
+echo "     ① bash 命令的可执行权限   ② Windows CRLF 行尾符"
+echo "     ③ 检查基础命令依赖       ④ Codex 用户的 AGENTS.md 引导"
+echo "   Claude / Gemini slash command 完全不依赖 exec 权限，可直接跳过本脚本。"
+echo ""
+echo "────────────────────────────────────────────────"
 echo ""
 
 # 1. Fix executable permissions

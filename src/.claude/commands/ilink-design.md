@@ -68,7 +68,7 @@ cp iLink-doc/$ARGUMENTS/$ARGUMENTS-design.master.md \
 ```markdown
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.6.0
+Protocol_Version: v1.7.0
 Role: DESIGNER
 AI_Vendor: Claude
 AI_Model: <你的实际模型 ID，如 claude-sonnet-4-6>

@@ -1,9 +1,9 @@
 # iLink Implementation Guide
 
 > **文档编号**: ILINK-IMPL-GUIDE
-> **版本**: v1.6.0
+> **版本**: v1.7.0
 > **作者**: 周本高
-> **日期**: 2026-05-10
+> **日期**: 2026-05-27
 > **文档类型**: 实施手册（Implementation Guide）
 > **状态**: 正式发布
 >

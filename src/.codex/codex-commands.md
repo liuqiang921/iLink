@@ -61,7 +61,7 @@
 ```
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.6.0
+Protocol_Version: v1.7.0
 Role: PM
 AI_Vendor: Codex
 AI_Model: <工具版本号>
@@ -110,7 +110,7 @@ Status: PENDING_DESIGNER
 ```
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.6.0
+Protocol_Version: v1.7.0
 Role: DESIGNER
 AI_Vendor: Codex
 AI_Model: <工具版本号>
@@ -181,7 +181,7 @@ cp iLink-doc/<story>/<story>-design.master.md \
 ```
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.6.0
+Protocol_Version: v1.7.0
 Role: CODER
 AI_Vendor: Codex
 AI_Model: <工具版本号>
@@ -268,7 +268,7 @@ Status: PENDING_QA
 ```
 ---
 # ILINK-PROTOCOL-METADATA
-Protocol_Version: v1.6.0
+Protocol_Version: v1.7.0
 Role: QA
 AI_Vendor: Codex
 AI_Model: <工具版本号>
