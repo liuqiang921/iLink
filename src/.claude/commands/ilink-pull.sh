@@ -40,21 +40,25 @@ if [[ ! -f "${PCTX}" ]]; then
 fi
 
 # 从 AI 隔离块中提取配置。匹配以 "> - " 开头的列表项
+# 注：管道末尾追加 `|| true`——grep 未匹配时返回 1，叠加 `pipefail` 会让整段命令
+# 替换以非零退出码结束，触发 `set -e` 静默杀掉脚本，让下方那个"缺少配置块"的
+# 友好错误提示永远走不到。用 `|| true` 把这条信号吞掉，把判空交给后续显式分支。
 API_URL="$(grep -E '^>[[:space:]]*-[[:space:]]*api_url:' "${PCTX}" \
   | head -n 1 \
   | sed -E 's/^>[[:space:]]*-[[:space:]]*api_url:[[:space:]]*//' \
   | tr -d '\r' \
-  | sed -E 's/[[:space:]]+$//')"
+  | sed -E 's/[[:space:]]+$//' || true)"
 
 PROJECT_NAME="$(grep -E '^>[[:space:]]*-[[:space:]]*project_name:' "${PCTX}" \
   | head -n 1 \
   | sed -E 's/^>[[:space:]]*-[[:space:]]*project_name:[[:space:]]*//' \
   | tr -d '\r' \
-  | sed -E 's/[[:space:]]+$//')"
+  | sed -E 's/[[:space:]]+$//' || true)"
 
 if [[ -z "${API_URL}" ]]; then
   echo "❌ project-context.md 中缺少 Issue System 集成 block（找不到 api_url 配置行）" >&2
-  echo "   请重跑 /ilink-bootstrap 自动补齐该块。" >&2
+  echo "   请重跑 /ilink-bootstrap 自动补齐该块" >&2
+  echo "   （注：重跑不会丢失原有内容，只会追加 KDOP 集成块；追加后还需手动把其中的 project_name 填为实际项目名）。" >&2
   exit 1
 fi
 
@@ -135,17 +139,24 @@ echo "→ 拉取: ${FULL_URL}"
 
 RESP_FILE="$(mktemp)"
 HTTP_CODE_FILE="$(mktemp)"
+CURL_ERR_FILE="$(mktemp)"
 TMP_BLOCK_FILE="$(mktemp)"
 TMP_OUT_FILE="$(mktemp)"
-cleanup() { rm -f "${RESP_FILE}" "${HTTP_CODE_FILE}" "${TMP_BLOCK_FILE}" "${TMP_OUT_FILE}"; }
+cleanup() { rm -f "${RESP_FILE}" "${HTTP_CODE_FILE}" "${CURL_ERR_FILE}" "${TMP_BLOCK_FILE}" "${TMP_OUT_FILE}"; }
 trap cleanup EXIT
 
+# 注：把 curl 的 stderr 重定向到临时文件而不是直接丢弃，失败时回显，方便定位
+# DNS 失败 / 连接被 reset / 证书问题等不同根因。
 if ! curl -sS --max-time 10 --retry 1 \
        -o "${RESP_FILE}" \
        -w "%{http_code}" \
-       "${FULL_URL}" > "${HTTP_CODE_FILE}" 2>/dev/null; then
+       "${FULL_URL}" > "${HTTP_CODE_FILE}" 2>"${CURL_ERR_FILE}"; then
   echo "❌ 连接不上 project-context.md 中配置的 URL 地址：${API_URL}" >&2
   echo "   请检查网络或 project-context.md 中 api_url 配置。" >&2
+  if [[ -s "${CURL_ERR_FILE}" ]]; then
+    echo "   curl 错误详情：" >&2
+    sed 's/^/     /' "${CURL_ERR_FILE}" >&2
+  fi
   exit 1
 fi
 
@@ -224,7 +235,7 @@ extract_string_field() {
 # 校验业务 code 字段（int，单独 grep 处理）
 CODE="$(grep -oE '"code"[[:space:]]*:[[:space:]]*[0-9]+' "${RESP_FILE}" \
         | head -n 1 \
-        | sed -E 's/.*:[[:space:]]*//')"
+        | sed -E 's/.*:[[:space:]]*//' || true)"
 
 if [[ "${CODE}" != "200" ]]; then
   MSG="$(extract_string_field "message" 2>/dev/null || echo "(无 message 字段)")"
