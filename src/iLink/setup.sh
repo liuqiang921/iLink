@@ -53,7 +53,7 @@ fi
 # 3. Check dependencies
 echo "[3/5] 检查依赖..."
 missing=0
-for cmd in bash awk sed grep tr cut sort basename; do
+for cmd in bash awk sed grep tr cut sort basename od; do
   if command -v "$cmd" &>/dev/null; then
     echo "  ✓ $cmd"
   else
@@ -66,6 +66,12 @@ if command -v shasum &>/dev/null; then
 else
   echo "  ✗ shasum 未找到"
   missing=$((missing + 1))
+fi
+# curl 仅在使用 /ilink-pull 时需要；缺失只警告不阻塞 setup
+if command -v curl &>/dev/null; then
+  echo "  ✓ curl"
+else
+  echo "  ⚠ curl 未找到（不影响 PM/Designer/Coder/QA 流水线；仅在使用 /ilink-pull 拉取 Issue System 时需要）"
 fi
 
 # 4. Verify Soul files

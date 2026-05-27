@@ -35,8 +35,10 @@
 - `ilink-status.md`
 - `ilink-domain.md`（认知模式入口）
 - `ilink-sdd.md`（认知模式入口，v1.4.11+）
+- `ilink-pull.md`（Issue System 拉取入口 AI 薄壳）
+- `ilink-pull.sh`（Issue System 拉取 bash 脚本本体；由 ilink-pull.md 调用）
 
-缺失时给出警告（不阻塞，因为可能使用其他平台）。
+缺失时给出警告（不阻塞，因为可能使用其他平台）。`ilink-pull.sh` 缺失时除 warn 外还要提示用户：缺该脚本则 `/ilink-pull` 不可用，但其他流水线命令不受影响。
 
 > **注意**：v1.6.0 起 `ilink-approve.md` 升级为含 Coach 子流程的 Slash Command（Coach 不需要单独的 `ilink-coach.md`）。
 
@@ -46,9 +48,11 @@
 
 ### 步骤 3：检查现有 project-context.md
 
-读取 `project-context.md`，如果已存在且内容完整（包含技术约束、模块职责等章节），跳到步骤 5。
+读取 `project-context.md`，如果已存在且内容完整（包含技术约束、模块职责等章节）：
+1. 先执行**步骤 4.5（Issue System 集成块补齐）**，确保该块存在
+2. 然后跳到步骤 5
 
-如果不存在或内容为空/模板状态，执行步骤 4。
+如果不存在或内容为空/模板状态，执行步骤 4 → 步骤 4.5 → 步骤 5。
 
 ### 步骤 4：分析项目并生成 project-context.md
 
@@ -138,6 +142,39 @@
 ```
 
 **重要**：`project-context.md` 是项目知识的**单一事实源**。CLAUDE.md 和 AGENTS.md 在 Bootstrap 后均为薄路由，不再承载项目知识。所有从 CLAUDE.md / AGENTS.md 迁移过来的项目信息 MUST 完整写入 project-context.md，不要使用引用方式（因为原文件会被备份并重写）。
+
+---
+
+### 步骤 4.5：注入 Issue System 集成块
+
+读取当前 `project-context.md`，检查是否已包含 "Issue System 集成" 块（搜索字符串 `AI 行为规则（CRITICAL，所有 AI 必须遵守）— Issue System 集成`）。
+
+- **已存在** → 跳过本步骤（保留用户已修改的 `project_name`）
+- **不存在** → 在文件中找到通用 AI 行为规则块的结束位置（即包含 `最后更新：` 行的那一段 blockquote 之后的第一个空行），**紧接其后**插入以下完整块：
+
+```markdown
+
+> **AI 行为规则（CRITICAL，所有 AI 必须遵守）— Issue System 集成**
+>
+> 本节配置由 iLink bash 脚本读取（如 `/ilink-pull`），用于按 story-id 从外部 Issue 系统拉取需求"描述"字段，写入 `<story>-requirement.md` 的"## 功能描述"区块。
+>
+> - **AI 不读取规则**：AI Agent SHALL NOT 把本节配置作为业务理解上下文——这里是工具配置，不是项目知识
+> - **AI 不修改规则**：AI SHALL NOT 修改本节配置；如需变更由用户手动编辑或重跑 `/ilink-bootstrap`
+> - **配置完整性规则**：`project_name` 必须填写，仍为 `<待填写>` 时 `/ilink-pull` 拒绝执行并提示用户编辑本节
+> - **URL 拼接规则**：实际请求 = `api_url` + `?issueId=<story-id>&projectName=<project_name>`，其中 `project_name` 含中文时自动 URL encode
+>
+> **配置项**：
+>
+> - type: kingdom-kdop
+> - api_url: http://jzdevops.szkingdom.com:8080/gateway/issue/issue/direct/access/searchIssueChinese
+> - project_name: <待填写>
+
+```
+
+**重要**：
+- 本步骤**不询问用户**，无论用户是否计划使用 `/ilink-pull`，都默认写入。不想用的用户保留 `<待填写>` 即可——`/ilink-pull` 会礼貌拒绝并指引编辑位置。
+- 仅 `project_name` 是 `<待填写>` 占位符。`type` 和 `api_url` 固定写入（金证内网约定值）。
+- 受 Root Spec §7.8 约束：本块是 AI 隔离块，未来的 AI 读取 project-context.md 时 MUST 跳过其内容。
 
 ---
 
