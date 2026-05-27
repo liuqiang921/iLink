@@ -402,9 +402,9 @@ iLink 可以与上述方案共存，为其提供补充能力：
   mv iLink-doc/<story>/<story>-需求定义.md iLink-doc/<story>/<story>-requirement.md
   ```
 
-## 作者
+## 贡献者(参与研发, 以及为项目提供想法、意见反馈、支持的人员)
 
-周本高
+周本高、寇俊、刘维、何俊、李鹏、万长久
 
 ## 许可证
 
