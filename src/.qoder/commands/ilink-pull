@@ -14,9 +14,9 @@ set -eo pipefail
 # 1. 参数解析（严格只接受 1 个参数）
 # ============================================================
 if [[ $# -ne 1 || -z "${1:-}" ]]; then
-  echo "❌ 用法：./.qoder/commands/ilink-pull <story-id>" >&2
+  echo "❌ 用法：/ilink-pull <story-id>" >&2
   echo "" >&2
-  echo "例如：./.qoder/commands/ilink-pull FS-AMO-5359" >&2
+  echo "例如：/ilink-pull FS-AMO-5359" >&2
   echo "" >&2
   echo "story-id 大小写不做转换，原样传给 Issue System。本命令只接受 1 个参数。" >&2
   exit 1
@@ -78,7 +78,7 @@ fi
 # ============================================================
 if [[ ! -f "${REQ_FILE}" ]]; then
   echo "❌ 未找到 ${REQ_FILE}" >&2
-  echo "   请先执行 bash .qoder/commands/ilink-init ${STORY} <usage-value>" >&2
+  echo "   请先执行 /ilink-init ${STORY} <usage-value>" >&2
   exit 1
 fi
 
@@ -237,6 +237,15 @@ if [[ "${CODE}" != "200" ]]; then
 fi
 
 DESCRIPTION="$(extract_string_field "描述" 2>/dev/null || true)"
+
+# 去除 HTML 标签，转换常见实体
+DESCRIPTION="$(printf '%s' "${DESCRIPTION}" \
+  | sed -E 's|<br[[:space:]]*/?>|\n|gi' \
+  | sed -E 's|</p>|\n|gi' \
+  | sed -E 's|<[^>]*>||g' \
+  | sed 's|&nbsp;| |g; s|&amp;|\&|g; s|&lt;|<|g; s|&gt;|>|g; s|&quot;|"|g' \
+  | awk 'BEGIN{blank=0} /^[[:space:]]*$/{blank++; if(blank<=1) print; next} {blank=0; print}' \
+  | sed -E 's/[[:space:]]+$//')"
 
 if [[ -z "${DESCRIPTION}" ]]; then
   echo "❌ 接口响应中 data.描述 字段缺失或为空" >&2

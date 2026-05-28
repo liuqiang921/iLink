@@ -246,6 +246,15 @@ fi
 # 提取 描述 字段
 DESCRIPTION="$(extract_string_field "描述" 2>/dev/null || true)"
 
+# 去除 HTML 标签，转换常见实体
+DESCRIPTION="$(printf '%s' "${DESCRIPTION}" \
+  | sed -E 's|<br[[:space:]]*/?>|\n|gi' \
+  | sed -E 's|</p>|\n|gi' \
+  | sed -E 's|<[^>]*>||g' \
+  | sed 's|&nbsp;| |g; s|&amp;|\&|g; s|&lt;|<|g; s|&gt;|>|g; s|&quot;|"|g' \
+  | awk 'BEGIN{blank=0} /^[[:space:]]*$/{blank++; if(blank<=1) print; next} {blank=0; print}' \
+  | sed -E 's/[[:space:]]+$//')"
+
 if [[ -z "${DESCRIPTION}" ]]; then
   echo "❌ 接口响应中 data.描述 字段缺失或为空" >&2
   echo "   请确认 story-id '${STORY}' 在 Issue System 中存在且已填写描述。" >&2

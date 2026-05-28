@@ -1157,7 +1157,8 @@ iLink 的每个角色 MUST 由人类手动触发：
 │   ├── _common.sh
 │   ├── ilink-init
 │   ├── ilink-status
-│   └── ilink-approve
+│   ├── ilink-approve
+│   └── ilink-pull
 ├── .qoder/commands/                    ← Qoder CLI 平台
 │   ├── _common.sh
 │   ├── ilink-init
@@ -1166,7 +1167,8 @@ iLink 的每个角色 MUST 由人类手动触发：
 │   ├── ilink-coder
 │   ├── ilink-qa
 │   ├── ilink-status
-│   └── ilink-approve
+│   ├── ilink-approve
+│   └── ilink-pull
 ├── .gemini/commands/                   ← Gemini CLI 平台（全部为 TOML 命令文件）
 │   ├── ilink-init.toml
 │   ├── ilink-pm.toml
@@ -1174,7 +1176,9 @@ iLink 的每个角色 MUST 由人类手动触发：
 │   ├── ilink-coder.toml
 │   ├── ilink-qa.toml
 │   ├── ilink-refine.toml
-│   └── ilink-domain.toml
+│   ├── ilink-domain.toml
+│   ├── ilink-pull.toml                 ← Issue System 拉取命令定义（调用同目录 .sh）
+│   └── ilink-pull.sh                   ← Issue System 拉取 bash 脚本（由 .toml 调用）
 └── src/                                ← 源代码
 ```
 
